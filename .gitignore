@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Env / secrets
+.env
+.env.*
+!.env.template
+
+# Build artifacts
+dist/
+build/
+.expo/
+*.tsbuildinfo
+
+# Native app outputs
+android/
+ios/
+*.apk
+*.aab
+*.ipa
+
+# OS / editor
+.DS_Store
+
+# DB
+*.sqlite
