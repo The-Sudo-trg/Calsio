@@ -1,0 +1,187 @@
+npx skills add https://github.com/anthropics/skills --skill frontend-design
+npx @waybarrios/opencode-power-pack install --profile security
+npx skills add https://github.com/anthropics/skills --skill webapp-testing
+npx skills add https://github.com/anthropics/skills --skill skill-creator
+# As skill
+npx skills add https://github.com/magh97/opencode-skills --skill ponytail
+
+# Or as plugin (recommended for full slash commands)
+# Add to opencode.json:
+# { "plugin": ["opencode-ponytail"] }   or   { "plugins": ["ponytail-opencode-v2"] }
+npx skills add https://github.com/ravinani02/opencode-agent-skills --skill deployment-pipeline-design
+
+npx skills add otnc/skills_ai-agent-saving-tech --skill token-saver-opencode -a opencode
+Caveman (terse output style): npx skills add JuliusBrussee/caveman (or OpenCode-adapted versions)
+
+# Mac Os 
+npx skills add fayazara/macos-app-skills -g -y
+	
+# Core “make native mobile app” set
+npx skills add https://github.com/farmage/opencode-skills --skill react-native-expert
+npx skills add https://github.com/ravinani02/opencode-agent-skills --skill react-native-architecture
+npx skills add https://github.com/ravinani02/opencode-agent-skills --skill react-native-design
+
+
+SkillFocusInstall commandreact-native-expertFull production React Native + Expo workflow (setup, structure, components, platform handling, performance, testing on both platforms)npx skills add https://github.com/farmage/opencode-skills --skill react-native-expertreact-native-architectureProject structure, navigation, state, native modules, offline-first, CI/CD for RN/Exponpx skills add https://github.com/ravinani02/opencode-agent-skills --skill react-native-architecturereact-native-designStyling, React Navigation, Reanimated 3, gestures, responsive layouts, platform-specific UInpx skills add https://github.com/ravinani02/opencode-agent-skills --skill react-native-design
+
+
+
+
+Here’s a practical setup guide for **[REA (morluto/rea)](https://github.com/morluto/rea)** on **OpenCode**, focused on **full APK reverse engineering** and using that understanding to **rebuild / reimplement** behavior.
+
+**Legal reminder:** Only analyze APKs you own, open-source, or are explicitly authorized to reverse. REA does **static** analysis (no automatic “crack and repack” pipeline).
+
+---
+
+## 1. Prerequisites
+
+| Requirement | Details |
+|-------------|---------|
+| **Node.js** | 22.19+, 24.11+, or 26+ (`node -v`) |
+| **OpenCode** | Installed and working |
+| **JDK 17+** (full JDK, not JRE) | Must include `jdk.compiler` |
+| **jadx-headless-mcp 0.7.1 JAR** | You supply this; REA does not download it |
+
+Optional later: Ghidra (native `.so`), Apktool (resources), ADB (device pull).
+
+---
+
+## 2. Install REA and wire it to OpenCode
+
+```bash
+# Guided setup — select OpenCode when prompted
+npx rea-agents@latest setup
+
+# Or non-interactive for OpenCode only
+npx rea-agents@latest setup --client opencode --yes
+```
+
+What this does:
+- Registers REA as a **local MCP server** in OpenCode’s config  
+- Installs the **`reverse-engineer-anything`** skill  
+- Backs up existing config before writing  
+
+Then **restart OpenCode** completely.
+
+Verify:
+
+```bash
+npx rea-agents@latest doctor --client opencode --json
+```
+
+---
+
+## 3. Android / APK engine (JADX)
+
+REA does not install JADX. You must provide the pinned JAR.
+
+```bash
+mkdir -p "$HOME/.local/share/rea/android" && cd "$HOME/.local/share/rea/android"
+
+curl -fL -o jadx-headless-mcp-0.7.1-all.jar \
+  https://github.com/1013503897/jadx-headless-mcp/releases/download/v0.7.1/jadx-headless-mcp-0.7.1-all.jar
+
+# Verify SHA-256 (must match)
+echo '6e5eacf500b64292bfb73c49797c1958f6ee44646e43e868039ae7feb573ff75  jadx-headless-mcp-0.7.1-all.jar' | sha256sum -c -
+
+export REA_JADX_MCP_JAR="$PWD/jadx-headless-mcp-0.7.1-all.jar"
+# Optional if java is not on PATH:
+# export JAVA_HOME=/path/to/jdk-17-or-newer
+```
+
+Make the env permanent (e.g. `~/.bashrc` / `~/.zshrc`), **or** re-run setup after exporting so OpenCode’s MCP registration picks it up:
+
+```bash
+export REA_JADX_MCP_JAR="$HOME/.local/share/rea/android/jadx-headless-mcp-0.7.1-all.jar"
+npx rea-agents@latest setup --client opencode --yes
+```
+
+Check JADX readiness:
+
+```bash
+npx rea-agents@latest doctor --provider jadx
+```
+
+---
+
+## 4. Analyze a whole APK (CLI or via OpenCode)
+
+**CLI (good for smoke test):**
+
+```bash
+# Absolute path required
+rea inspect-android-package /absolute/path/to/app.apk
+
+rea search-android-classes /absolute/path/to/app.apk MainActivity
+rea inspect-android-class /absolute/path/to/app.apk com.example.MainActivity
+rea inspect-android-method /absolute/path/to/app.apk com.example.MainActivity onCreate
+rea trace-android-references /absolute/path/to/app.apk com.example.MainActivity
+```
+
+**In OpenCode** (after restart), ask something like:
+
+> Use REA / reverse-engineer-anything.  
+> Inspect the full APK at `/absolute/path/to/app.apk`: package identity, manifest, main activities, and decompile the login / payment / feature X flow.  
+> Report evidence, limitations, and unknowns. Then propose a clean reimplementation of feature X.
+
+Useful MCP-style tools the agent will call:
+- `inspect_android_package`
+- `search_android_classes`
+- `inspect_android_class`
+- `inspect_android_method`
+- `trace_android_references`
+
+---
+
+## 5. “Rev whole APK and rebuilding” — realistic workflow
+
+REA gives you **decompiled Java/smali + evidence**, not a one-click rebuild of a modified APK.
+
+Typical flow:
+
+1. **Inventory** – `inspect_android_package` (manifest, components, permissions).  
+2. **Map features** – search classes / methods, decompile, trace references.  
+3. **Document** – agent produces evidence-backed notes (what works, what’s obfuscated, unknowns).  
+4. **Rebuild** – in OpenCode, use your normal mobile skills (React Native / Flutter / native) to **reimplement** the understood behavior in a **new** project.  
+5. Optional: use **Apktool** yourself for resources/smali edit + resign (outside REA’s core path). REA can help with resource decoding if you supply Apktool.
+
+Packed/obfuscated apps (commercial packers) may only partially decompile; REA will report limitations.
+
+---
+
+## 6. Optional extras
+
+| Goal | What to add |
+|------|-------------|
+| Native `.so` libraries | Ghidra 12.1.x + JDK 21 → `export GHIDRA_INSTALL_DIR=...` then `rea doctor --provider ghidra` |
+| Resources / smali | Apktool on PATH (see REA’s apktool-resource docs) |
+| Pull APK from device | `adb` + REA’s ADB device tools |
+| Token cost | `REA_MCP_INPUT_SCHEMA_PROFILE=compact` in the MCP env (cuts large tool schemas) |
+
+Skill-only (no MCP engines):
+
+```bash
+npx skills add morluto/rea --skill reverse-engineer-anything
+```
+
+That installs instructions only; for real APK decomp you still need the MCP + JADX setup above.
+
+---
+
+## 7. Quick checklist
+
+1. `node -v` OK  
+2. `npx rea-agents@latest setup --client opencode` → approve → **restart OpenCode**  
+3. JDK 17+ + pinned JADX JAR + `REA_JADX_MCP_JAR`  
+4. `rea doctor --provider jadx` healthy  
+5. `rea inspect-android-package /abs/path/app.apk` works  
+6. In OpenCode: ask for full package inspect + feature decompile + reimplementation plan  
+
+If something fails, paste the output of:
+
+```bash
+npx rea-agents@latest doctor --client opencode --json
+npx rea-agents@latest doctor --provider jadx --json
+```
+
+and we can debug the next step.

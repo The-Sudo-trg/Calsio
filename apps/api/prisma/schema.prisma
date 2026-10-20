@@ -1,0 +1,293 @@
+// CALSIO — Prisma schema (master prompt §9)
+// Greenfield: no legacy tables exist; this is the initial model set.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- People ----------
+
+model Customer {
+  id          String     @id @default(cuid())
+  phone       String     @unique
+  name        String?
+  email       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  addresses   Address[]
+  sizeProfile SizeProfile?
+  orders      Order[]
+  reviews     Review[]
+  carts       Cart[]
+  devices     Device[]
+  aiCalls     AiInteraction[]
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  String
+  label       String   @default("Home")
+  receiver    String
+  line1       String
+  line2       String?
+  city        String
+  state       String
+  pincode     String   @db.VarChar(6)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([customerId])
+}
+
+model Device {
+  id          String   @id @default(cuid())
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  String
+  platform    String   // ios | android | web
+  pushToken   String   @unique
+  lastActive  DateTime @default(now())
+
+  @@index([customerId])
+}
+
+// ---------- Fit / Size Oracle ----------
+
+model SizeProfile {
+  id             String   @id @default(cuid())
+  customer       Customer @relation(fields: [customerId], references: [id])
+  customerId     String   @unique
+
+  footLengthCm   Float         // slider input, e.g. 26.4
+  widthFeel      String        // narrow | regular | wide
+  usualBrandSize String         // e.g. "UK 9 in Bata"
+  fitPreference  String        // snug | true | roomy
+
+  predictedUk    Float?        // oracle output per product last is stored on prediction time
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------- Catalog ----------
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  category    Category
+  gender      Gender
+  description String   // en-IN
+  descriptionHi String? // hi
+  craftStory  String    // "Crafted in Agra" copy
+  mrp         Int       // in inrWhole rupees, indian grouping applied at UI
+  price       Int       // selling price (₹)
+  material    String?
+  occasion    String?   // casual | wedding | office | party
+  colorway    String?
+  isCodEnabled Boolean   @default(true)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  variants    Variant[]
+  images      Image[]
+  reviews     Review[]
+
+  @@index([category, gender, isActive])
+}
+
+enum Category {
+  SNEAKERS
+  LOAFERS
+  SANDALS
+  FORMAL
+}
+
+enum Gender {
+  MEN
+  WOMEN
+  UNISEX
+}
+
+model Variant {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  sku       String  @unique
+  size      String   // UK size label, e.g. "UK 7"
+  colorName String
+  stock     Int      @default(0)
+
+  cartItems CartItem[]
+  orderItems OrderItem[]
+
+  @@index([productId])
+}
+
+model Image {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  url       String
+  alt       String?
+  sortOrder Int     @default(0)
+
+  @@index([productId])
+}
+
+model Review {
+  id               String   @id @default(cuid())
+  product          Product  @relation(fields: [productId], references: [id])
+  productId        String
+  customer         Customer @relation(fields: [customerId], references: [id])
+  customerId       String
+  rating           Int      // 1..5
+  text             String
+  verifiedPurchase Boolean  @default(false)
+  isPublished      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ---------- Cart ----------
+
+model Cart {
+  id        String     @id @default(cuid())
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  customerId String
+  status    CartStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  items     CartItem[]
+
+  @@index([customerId, status])
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cart      Cart    @relation(fields: [cartId], references: [id])
+  cartId    String
+  variant   Variant @relation(fields: [variantId], references: [id])
+  variantId String
+  quantity  Int     @default(1)
+
+  @@unique([cartId, variantId])
+}
+
+// ---------- Orders ----------
+
+model Order {
+  id          String     @id @default(cuid())
+  customer    Customer   @relation(fields: [customerId], references: [id])
+  customerId  String
+  status      OrderStatus @default(PLACED)
+  subtotal    Int
+  shippingFee Int        @default(0) // 0 when subtotal >= 1499 (free-shipping rule)
+  total       Int
+  addressSnapshot Json     // denormalized address at time of order
+  placedAt    DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  items       OrderItem[]
+  payment     Payment?
+  returnReq   Return?
+
+  @@index([customerId, status])
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  variant   Variant @relation(fields: [variantId], references: [id])
+  variantId String
+  quantity  Int
+  unitPrice Int      // price at time of order
+
+  @@index([orderId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  order         Order         @relation(fields: [orderId], references: [id])
+  orderId       String        @unique
+  method        PaymentMethod @default(UPI)
+  status        PaymentStatus @default(PENDING)
+  razorpayOrderId String?     // razorpay order id
+  razorpayPaymentId String?
+  amount        Int
+  signatureVerified Boolean @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NETBANKING
+  COD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Return {
+  id        String      @id @default(cuid())
+  order     Order       @relation(fields: [orderId], references: [id])
+  orderId   String      @unique
+  reason    String
+  status    ReturnStatus @default(REQUESTED)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+enum ReturnStatus {
+  REQUESTED
+  PICKUP_SCHEDULED
+  RECEIVED
+  REFUNDED
+  REJECTED
+}
+
+// ---------- AI telemetry ----------
+
+model AiInteraction {
+  id         String   @id @default(cuid())
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  customerId String?
+  type       String   // snap_match | size_oracle | style_coach | catalog_copilot
+  input      Json
+  output     Json?
+  latencyMs  Int?
+  costMicros Int?     // provider cost in micro-dollars for cost logging (§7 rules)
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, type])
+}

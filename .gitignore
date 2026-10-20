@@ -9,6 +9,8 @@ node_modules/
 # Build artifacts
 dist/
 build/
+.next/
+next-env.d.ts
 .expo/
 *.tsbuildinfo
 

@@ -1,0 +1,31 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "dotenv -e ../../.env next dev --port 4000",
+    "build": "dotenv -e ../../.env next build",
+    "start": "dotenv -e ../../.env next start --port 4000",
+    "db:generate": "dotenv -e ../../.env prisma generate",
+    "db:migrate": "dotenv -e ../../.env prisma migrate dev",
+    "db:seed": "dotenv -e ../../.env tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "next": "16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "~19.3.0",
+    "@types/react-dom": "~19.3.0",
+    "dotenv-cli": "^11.0.0",
+    "prisma": "6.19.3",
+    "tsx": "^4.20.3",
+    "typescript": "~5.9.0"
+  }
+}

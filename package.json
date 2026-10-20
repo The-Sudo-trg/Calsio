@@ -1,0 +1,15 @@
+{
+  "name": "calsio",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "mcp-servers/*"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d postgres",
+    "db:schema": "npm run db:schema -w apps/api",
+    "mobile": "npm run start -w apps/mobile",
+    "api": "npm run dev -w apps/api",
+    "typecheck": "npm run typecheck -w apps/mobile && npm run typecheck -w apps/api"
+  }
+}
