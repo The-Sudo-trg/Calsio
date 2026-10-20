@@ -1,8 +1,9 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 import {
@@ -21,9 +22,7 @@ import {
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
 
-import AppTabs from '@/components/app-tabs';
 import { Colors } from '@/constants/theme';
-
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -48,6 +47,15 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: { staleTime: 30_000, retry: 1 },
+        },
+      })
+  );
+
   const theme = useMemo(
     () => ({
       ...(dark ? DarkTheme : DefaultTheme),
@@ -69,9 +77,14 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={theme}>
-      <StatusBar style={dark ? 'light' : 'dark'} />
-      <AppTabs />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider value={theme}>
+        <StatusBar style={dark ? 'light' : 'dark'} />
+        {/* Root stack: tabs group + every pushed shop route (PDP/PLP/checkout/order/ai). */}
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

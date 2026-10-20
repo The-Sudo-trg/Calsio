@@ -27,6 +27,7 @@ model Customer {
   carts       Cart[]
   devices     Device[]
   aiCalls     AiInteraction[]
+  sessions    Session[]
 }
 
 model Address {
@@ -274,6 +275,31 @@ enum ReturnStatus {
   RECEIVED
   REFUNDED
   REJECTED
+}
+
+// ---------- Auth / OTP ----------
+
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String    @db.VarChar(15)
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
 }
 
 // ---------- AI telemetry ----------

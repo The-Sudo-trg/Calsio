@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "db:up": "docker compose up -d postgres",
+    "db:start": "LD_LIBRARY_PATH=$HOME/.local/share/postgres-17/lib $HOME/.local/share/postgres-17/bin/pg_ctl -D $HOME/.local/share/calsio-pg -l $HOME/.local/share/postgres-17/log/calsio.log -o '-p 5432 -c listen_addresses=localhost' start",
+    "db:status": "LD_LIBRARY_PATH=$HOME/.local/share/postgres-17/lib $HOME/.local/share/postgres-17/bin/pg_ctl -D $HOME/.local/share/calsio-pg status",
     "db:schema": "npm run db:schema -w apps/api",
     "mobile": "npm run start -w apps/mobile",
     "api": "npm run dev -w apps/api",

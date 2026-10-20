@@ -1,31 +1,49 @@
 import { StyleSheet, ScrollView, View, Pressable, useColorScheme } from 'react-native';
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 
 import CalText from '@/components/cal-text';
 import CraftStamp from '@/components/craft-stamp';
-import {
-  Colors,
-  Fonts,
-  Palette,
-  Radius,
-  Spacing,
-} from '@/constants/theme';
+import { api } from '@/lib/api';
+import type { ProductsResponse, ProductListItem } from '@/lib/types';
 import { formatINR } from '@/lib/rupee';
+import { Colors, Palette, Radius, Spacing } from '@/constants/theme';
+
+export const PRODUCT_CATEGORIES = ['SNEAKERS', 'LOAFERS', 'SANDALS', 'FORMAL'] as const;
+
+const CAT_LABELS: Record<string, string> = {
+  SNEAKERS: 'Sneakers',
+  LOAFERS: 'Loafers',
+  SANDALS: 'Sandals',
+  FORMAL: 'Formal',
+};
 
 /**
- * Home — master prompt §6.1:
- * hero with latest drop · "Snap & Match" AI entry card · category rail ·
- * Agra craft story strip · review wall.
- * Product data is still static in Phase 1; the API wires up in Phase 2.
+ * Home — live data (Phase 2):
+ * hero = latest drop card (API) · Snap & Match entry · category rail → PLP ·
+ * Agra craft story strip · review wall (verified, seeded).
  */
 export default function HomeScreen() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
   const cardBg = { backgroundColor: colors.backgroundElement };
 
+  const catalog = useQuery<ProductsResponse>({
+    queryKey: ['products', 'home'],
+    queryFn: () => api<ProductsResponse>('/api/products?pageSize=8&sort=newest'),
+  });
+
+  const reviews = useQuery<{ reviews: { id: string; rating: number; text: string }[] }>({
+    queryKey: ['reviews', 'home'],
+    queryFn: () => api('/api/reviews?limit=3'),
+  });
+
+  const hero: ProductListItem | undefined = catalog.data?.items[0];
+
   return (
     <ScrollView
-      style={styles.screen}
+      style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}>
       {/* Wordmark row */}
@@ -38,35 +56,49 @@ export default function HomeScreen() {
         </CalText>
       </View>
 
-      {/* Hero — latest drop */}
-      <View style={[styles.hero, styles.card, cardBg]}>
-        <CalText variant="eyebrow" style={styles.heroEyebrow}>
-          LATEST DROP
-        </CalText>
-        <CalText variant="h2" style={styles.heroTitle}>
-          StepOne Court Sneaker
-        </CalText>
-        <CalText variant="body" color="textSecondary" style={styles.heroSub}>
-          Ivory canvas, memory-foam insole. Hupkai Gali karigari, re-engineered for your 9-to-9.
-        </CalText>
-        <View style={styles.heroPriceRow}>
-          <CalText variant="h3" style={styles.heroPrice}>
-            {formatINR(2499)}
+      {/* Hero — latest drop (live) */}
+      {hero ? (
+        <View style={[styles.hero, styles.card, cardBg]}>
+          {hero.image?.url ? (
+            <Image source={{ uri: hero.image.url }} style={styles.heroImage} contentFit="cover" />
+          ) : null}
+          <CalText variant="eyebrow" style={styles.heroEyebrow}>
+            LATEST DROP
           </CalText>
-          <CalText variant="bodySmall" color="textMuted" style={styles.heroMrp}>
-            {formatINR(3499)}
+          <CalText variant="h2" style={styles.heroTitle}>
+            {hero.name.replace('Calsio ', '')}
+          </CalText>
+          <View style={styles.heroPriceRow}>
+            <CalText variant="h3" style={styles.heroPrice}>
+              {formatINR(hero.price)}
+            </CalText>
+            <CalText variant="bodySmall" color="textMuted" style={styles.heroMrp}>
+              {formatINR(hero.mrp)}
+            </CalText>
+          </View>
+          <Link href={`/product/${hero.slug}`} asChild>
+            <Pressable style={styles.heroCta} accessibilityLabel={`View ${hero.name}`}>
+              <CalText variant="body" style={styles.heroCtaText}>
+                Dekho aur pehno
+              </CalText>
+            </Pressable>
+          </Link>
+        </View>
+      ) : catalog.isError ? (
+        <CalText variant="bodySmall" color="textMuted">
+          Catalog backend nahi pahunch raha — `npm run api` chalao.
+        </CalText>
+      ) : (
+        <View style={[styles.card, cardBg, styles.skeleton]}>
+          <CalText variant="bodySmall" color="textMuted">
+            Storing the drop…
           </CalText>
         </View>
-        <Pressable style={styles.heroCta} accessibilityLabel="Shop the StepOne drop">
-          <CalText variant="body" style={styles.heroCtaText}>
-            Shop the drop
-          </CalText>
-        </Pressable>
-      </View>
+      )}
 
       {/* Snap & Match — AI entry card */}
       <Pressable
-        style={[styles.snapCard]}
+        style={styles.snapCard}
         accessibilityLabel="Snap and Match: find this shoe in CALSIO"
         onPress={() => router.push('/ai/snap-match')}>
         <View style={styles.snapCopy}>
@@ -82,15 +114,17 @@ export default function HomeScreen() {
         </CalText>
       </Pressable>
 
-      {/* Category rail */}
+      {/* Category rail → PLP */}
       <View style={styles.sectionHead}>
         <CalText variant="h3">Shop by category</CalText>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-        {['Sneakers', 'Loafers', 'Sandals', 'Formal'].map((c) => (
-          <Pressable key={c} style={styles.chip} accessibilityLabel={`Browse ${c}`}>
-            <CalText variant="body">{c}</CalText>
-          </Pressable>
+        {PRODUCT_CATEGORIES.map((c) => (
+          <Link key={c} href={`/collections/${c}`} asChild>
+            <Pressable style={styles.chip} accessibilityLabel={`Browse ${CAT_LABELS[c]}`}>
+              <CalText variant="body">{CAT_LABELS[c]}</CalText>
+            </Pressable>
+          </Link>
         ))}
       </ScrollView>
 
@@ -107,14 +141,15 @@ export default function HomeScreen() {
         </CalText>
       </View>
 
-      {/* Review wall */}
+      {/* Review wall (live, verified) */}
       <View style={styles.sectionHead}>
         <CalText variant="h3">What India is saying</CalText>
       </View>
-      {REVIEWS.map((r) => (
-        <View key={r.name} style={[styles.reviewCard, styles.card, cardBg]}>
+      {(reviews.data?.reviews ?? []).map((r) => (
+        <View key={r.id} style={[styles.reviewCard, styles.card, cardBg]}>
           <CalText variant="bodySmall" style={styles.reviewMeta}>
-            ★★★★★ · {r.name} · {r.city} · verified purchase
+            {'★'.repeat(r.rating)}
+            {'☆'.repeat(Math.max(0, 5 - r.rating))} · verified purchase
           </CalText>
           <CalText variant="body" color="textSecondary">
             {r.text}
@@ -123,71 +158,30 @@ export default function HomeScreen() {
       ))}
 
       <CalText variant="caption" color="textMuted" style={styles.footnote}>
-        Product surfaces connect to live catalog in Phase 2.
+        COD · UPI · 7-day easy returns · Free delivery {formatINR(1499)} se upar
       </CalText>
     </ScrollView>
   );
 }
 
-const REVIEWS = [
-  {
-    name: 'Priya S.',
-    city: 'Lucknow',
-    text: 'StepOne 10 din se roz pehna hai — alte pehnne se bhi pair me dard nahi. Packaging dekh ke maa khush ho gayi!',
-  },
-  {
-    name: 'Rohit K.',
-    city: 'Jaipur',
-    text: 'Size Oracle ne bilkul sahi size bataya. Peli baar online joote order kiye, return ki tension khatam.',
-  },
-  {
-    name: 'Faisal A.',
-    city: 'Hyderabad',
-    text: 'Tan loafer shaadi me pehna. Log "kahan se liya?" puch rahe the. Franchise wale brand me milta hi nahi itni finishing.',
-  },
-] as const;
-
 const styles = StyleSheet.create({
-  screen: { flex: 1 },  content: {
-    padding: Spacing.four,
-    paddingBottom: Spacing.six,
-    gap: Spacing.three,
-  },
+  content: { padding: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three },
   card: {
     borderRadius: Radius.card,
     padding: Spacing.three,
     gap: Spacing.two,
   },
-  brandRow: {
-    alignItems: 'flex-start',
-    gap: Spacing.one,
-    paddingTop: Spacing.two,
-  },
-  wordmark: {
-    letterSpacing: 6,
-    fontWeight: '700',
-  },
-  hero: {
-    gap: Spacing.two,
-  },
-  heroEyebrow: {
-    color: Palette.clay,
-  },
-  heroTitle: {
-    fontWeight: '700',
-  },
-  heroSub: { fontFamily: Fonts.body },
-  heroPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Spacing.two,
-  },
-  heroPrice: {
-    fontWeight: '700',
-  },
-  heroMrp: {
-    textDecorationLine: 'line-through',
-  },
+  storyCard: { alignItems: 'flex-start' },
+  skeleton: { minHeight: 120, justifyContent: 'center' },
+  brandRow: { alignItems: 'flex-start', gap: Spacing.one, paddingTop: Spacing.two },
+  wordmark: { letterSpacing: 6, fontWeight: '700' },
+  hero: { gap: Spacing.two },
+  heroImage: { width: '100%', height: 180, borderRadius: Radius.card },
+  heroEyebrow: { color: Palette.clay },
+  heroTitle: { fontWeight: '700' },
+  heroPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.two },
+  heroPrice: { fontWeight: '700' },
+  heroMrp: { textDecorationLine: 'line-through' },
   heroCta: {
     backgroundColor: Palette.clay,
     borderRadius: Radius.pill,
@@ -225,10 +219,8 @@ const styles = StyleSheet.create({
     borderColor: Palette.clay,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'transparent',
   },
   storyTitle: { fontWeight: '700' },
-  storyCard: { gap: Spacing.two },
   reviewCard: { gap: Spacing.one },
   reviewMeta: { color: Palette.success },
   footnote: { textAlign: 'center' },
